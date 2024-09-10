@@ -1,0 +1,563 @@
+<template>
+  <div class="lookup-container">
+    <h1 class="title">Lookups</h1>
+    
+    <!-- Form for adding/updating lookups -->
+    <div class="lookup-form">
+      <h2>{{ isEdit ? 'Edit Lookup' : 'Add Lookup' }}</h2>
+      <form @submit.prevent="isEdit ? updateLookup() : addLookup()" class="form-container">
+        <!-- <label for="lookup_id">LookupId:</label>
+        <input v-model="lookupForm.lookup_id" type="number" id="lookup_id" :disabled="isEdit" required class="input-field"> -->
+        
+        <label for="lookup_type">Type:</label>
+        <input v-model="lookupForm.lookup_type" type="text" id="lookup_type" required class="input-field">
+
+        <label for="lookup_desc">Description:</label>
+        <input v-model="lookupForm.lookup_desc" type="text" id="lookup_desc" required class="input-field">
+
+        <label for="is_active">Active:</label>
+        <select v-model="lookupForm.is_active" id="is_active" class="select-field">
+          <option value="Y">Yes</option>
+          <option value="N">No</option>
+        </select>
+
+        <!-- DateTime picker field for UpdatedDATE -->
+        <label for="updated_date">Updated Date and Time:</label>
+        <input v-model="lookupForm.updatedDATE" type="datetime-local" id="updated_date" class="input-field">
+
+        <label for="updatedby">Updatedby:</label>
+        <select v-model="lookupForm.updatedby" id="updatedby" class="select-field">
+          <option value="Admin">Admin</option>
+          <option value="User">User</option>
+        </select>
+
+        <div class="button-group">
+          <button type="submit" class="btn primary">{{ isEdit ? 'Update' : 'Add' }}</button>
+          <button @click="clearForm" type="button" class="btn secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Table to display lookups -->
+    <table class="lookup-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Active</th>
+          <th>Created By</th>
+          <th>Created Date</th>
+          <th>Updated By</th>
+          <th>Updated Date</th> 
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="lookup in paginatedLookups" :key="lookup.lookup_id">
+          <td>{{ lookup.lookup_id }}</td>
+          <td>{{ lookup.lookup_type }}</td>
+          <td>{{ lookup.lookup_desc }}</td>
+          <td>{{ lookup.is_active }}</td>
+          <td>{{ lookup.createdby }}</td>
+          <td>{{ new Date(lookup.createdDATE).toLocaleString() }}</td>
+          <td> {{ lookup.updatedby }}</td>
+          <td> {{ new Date(lookup.updatedDATE).toLocaleString() }}</td>
+
+
+          <td>
+            <button @click="editLookup(lookup)" class="btn edit-btn">Edit</button>
+            <!--<button @click="deleteLookup(lookup.lookup_id)" class="btn delete-btn">Delete</button>-->
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <!-- Pagination controls -->
+    <div class="pagination">
+      <button @click="previousPage" :disabled="currentPage <= 1" class="pagination-button">Previous</button>
+      <span class="pagination-info">Page {{ currentPage }} of {{ totalPages }}</span>
+      <button @click="nextPage" :disabled="currentPage >= totalPages" class="pagination-button">Next</button>
+    </div>
+  </div>
+</template>
+
+<script>
+import api from '../APIs/Lookupapi'; // Adjust the import path if needed
+
+export default {
+  data() {
+    return {
+      lookups: [],
+      currentPage: 1,
+      pageSize: 10, // Number of items per page
+      lookupForm: {
+        lookup_id: null,
+        lookup_type: '',
+        lookup_desc: '',
+        is_active: 'Y',
+      
+        updatedDATE: '',
+      },
+      isEdit: false, // Track whether we are editing or adding
+    };
+  },
+  computed: {
+    paginatedLookups() {
+      const start = (this.currentPage - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      return this.lookups.slice(start, end);
+    },
+    totalPages() {
+      return Math.ceil(this.lookups.length / this.pageSize);
+    },
+  },
+  methods: {
+    async fetchLookups() {
+      try {
+        const response = await api.get('/');
+        this.lookups = response.data;
+      } catch (error) {
+        console.error('Failed to load lookups:', error);
+      }
+    },
+
+    validateDate(date) {
+      const validDate = new Date(date);
+      if (isNaN(validDate.getTime()) || validDate < new Date('2013-01-01')) {
+        return new Date().toISOString().substring(0, 19); // Default to current date/time
+      }
+      return validDate.toISOString().substring(0, 19);
+    },
+
+    // async addLookup() {
+    //   try {
+    //     // Validate or set default date
+    //     this.lookupForm.updatedDATE = this.validateDate(this.lookupForm.updatedDATE);
+    //     const response = await api.post('/', this.lookupForm);
+    //     this.lookups.push(response.data);
+    //     this.clearForm();
+    //   } catch (error) {
+    //     console.error('Failed to add lookup:', error.response?.data || error.message);
+    //   }
+    // },
+//    async addLookup() {
+//   try {
+//     // Validate or set default date
+//     this.lookupForm.createdDATE = this.lookupForm.createdDATE || new Date().toISOString();
+//     this.lookupForm.updatedDATE = this.lookupForm.updatedDATE || new Date().toISOString();
+//     this.lookupForm.createdby = this.lookupForm.createdby || 'system'; // Default creator
+//     this.lookupForm.updatedby = this.lookupForm.updatedby || 'system'; // Default updater
+
+//     // Log the form data to verify all fields are present
+//     console.log('Submitting lookup form:', this.lookupForm);
+
+//     // Send the data to the API
+//     const response = await api.post('/', this.lookupForm);
+    
+//     this.lookups.push(response.data);
+//     this.clearForm();
+//   } catch (error) {
+//     console.error('Failed to add lookup:', error.response?.data || error.message);
+//   }
+// },
+
+async addLookup() {
+  try {
+    // If needed, set default date if it's not provided
+    const lookupData = {
+  lookup_type: this.lookupForm.lookup_type,
+  lookup_desc: this.lookupForm.lookup_desc,
+  is_active: this.lookupForm.is_active,
+  createdDATE: new Date().toISOString(), // Set the creation date to the current date and time
+  updatedDATE: this.lookupForm.updatedDATE || new Date().toISOString(), // Use form value if available, otherwise current date and time
+  updatedby: this.lookupForm.updatedby || 'Admin', // Use form value or default to 'Admin'
+};
+    const response = await api.post('/', lookupData);
+    this.lookups.push(response.data);
+    this.clearForm();
+  } catch (error) {
+    console.error('Failed to add lookup:', error.response?.data || error.message);
+  }
+},
+
+
+async updateLookup() {
+  try {
+    // Ensure that the updated date is valid
+    this.lookupForm.updatedDATE = this.lookupForm.updatedDATE || new Date().toISOString();
+    
+    // Log the form data to verify its correctness
+    console.log('Updating lookup form:', this.lookupForm);
+    
+    // Make the PUT request
+    await api.put(`/${this.lookupForm.lookup_id}`, this.lookupForm);
+    
+    // Find and update the lookup in the local state
+    const index = this.lookups.findIndex(l => l.lookup_id === this.lookupForm.lookup_id);
+    if (index !== -1) {
+      this.lookups.splice(index, 1, { ...this.lookupForm });
+    }
+    this.clearForm();
+  } catch (error) {
+    console.error('Failed to update lookup:', error.response?.data || error.message);
+  }
+}
+,
+
+    async deleteLookup(lookup_id) {
+      try {
+        await api.delete(`/${lookup_id}`);
+        this.lookups = this.lookups.filter(lookup => lookup.lookup_id !== lookup_id);
+      } catch (error) {
+        console.error('Failed to delete lookup:', error);
+      }
+    },
+
+    editLookup(lookup) {
+      const formatDateTime = (datetime) => {
+        const date = new Date(datetime);
+        return date.toISOString().substring(0, 19); // Extract 'YYYY-MM-DDTHH:MM:SS'
+      };
+
+      this.lookupForm = { 
+        ...lookup, 
+        updatedDATE: lookup.updatedDATE ? formatDateTime(lookup.updatedDATE) : '' 
+      };
+      this.isEdit = true;
+    },
+
+    clearForm() {
+      this.lookupForm = {
+        lookup_id: null,
+        lookup_type: '',
+        lookup_desc: '',
+        is_active: 'Y',
+        createdby: '',
+        updatedDATE: '',
+      };
+      this.isEdit = false;
+    },
+
+    previousPage() {
+      if (this.currentPage > 1) {
+        this.currentPage--;
+      }
+    },
+
+    nextPage() {
+      if (this.currentPage < this.totalPages) {
+        this.currentPage++;
+      }
+    },
+  },
+  created() {
+    this.fetchLookups();
+  },
+};
+</script>
+
+
+
+
+
+
+
+
+<style scoped>
+.lookup-container {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.title {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+.lookup-form {
+  margin-bottom: 30px;
+}
+
+.form-container {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.input-field, .select-field {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  width: 100%;
+}
+
+.button-group {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.btn.secondary {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn.edit-btn {
+  background-color: #FFC107;
+}
+
+.btn.delete-btn {
+  background-color: #f44336;
+}
+
+.lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+.lookup-table th, .lookup-table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: center;
+}
+
+.lookup-table th {
+  background-color: #f2f2f2;
+}
+
+.pagination {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.pagination-button {
+  padding: 10px 15px;
+  margin: 0 5px;
+  border: none;
+  background-color: #4CAF50;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pagination-info {
+  margin: 0 10px;
+}
+</style>
+
+
+
+
+
+
+
+
+
+using System;
+using System.Collections.Generic;
+using Microsoft.Data.SqlClient;
+using System.Threading.Tasks;
+using CoreWCFService1.IServices;
+using CoreWCFService1.Models;
+namespace CoreWCFService1.DataAccessLayer
+{
+
+    public class LookupService : ILookupService
+    {
+        private readonly string _connectionString;
+
+        public LookupService(string connectionString)
+        {
+            _connectionString = connectionString;
+        }
+
+        public async Task<IEnumerable<Lookup>> GetAllLookups()
+        {
+            var lookups = new List<Lookup>();
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "SELECT * FROM lookup_table";
+                var command = new SqlCommand(query, connection);
+                connection.Open();
+                var reader = await command.ExecuteReaderAsync();
+                while (reader.Read())
+                {
+                    lookups.Add(new Lookup
+                    {
+                        Lookup_id = (int)reader["Lookup_id"],
+                        Lookup_type = reader["Lookup_type"] as string,
+                        Lookup_desc = reader["Lookup_desc"] as string,
+                        Is_active = reader["Is_active"] as string,
+                        Createdby = reader["Createdby"] as string,
+                        CreatedDATE = (DateTime)reader["CreatedDATE"],
+                        Updatedby = reader["Updatedby"] as string,
+                        UpdatedDATE = reader["UpdatedDATE"] as DateTime?,
+                    });
+                }
+            }
+            return lookups;
+        }
+
+        public async Task<Lookup> GetLookupById(int id)
+        {
+            Lookup ?lookup = null;
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "SELECT * FROM lookup_table WHERE Lookup_id = @id";
+                var command = new SqlCommand(query, connection);
+                command.Parameters.AddWithValue("@id", id);
+                connection.Open();
+                var reader = await command.ExecuteReaderAsync();
+                if (reader.Read())
+                {
+                    lookup = new Lookup
+                    {
+                        Lookup_id = (int)reader["Lookup_id"],
+                        Lookup_type = reader["Lookup_type"] as string,
+                        Lookup_desc = reader["Lookup_desc"] as string,
+                        Is_active = reader["Is_active"] as string,
+                        Createdby = reader["Createdby"] as string,
+                        CreatedDATE = (DateTime)reader["CreatedDATE"],
+                        Updatedby = reader["Updatedby"] as string,
+                        UpdatedDATE = (DateTime)reader["UpdatedDATE"],
+                    };
+                }
+            }
+            return lookup;
+        }
+
+   public async Task AddLookup(Lookup lookup)
+{
+    using var connection = new SqlConnection(_connectionString);
+
+    // Set default dates if not provided
+    lookup.CreatedDATE = lookup.CreatedDATE == default ? DateTime.Now : lookup.CreatedDATE;
+    lookup.UpdatedDATE = lookup.UpdatedDATE == default ? DateTime.Now : lookup.UpdatedDATE;
+
+    var query = "INSERT INTO lookup_table (Lookup_type, Lookup_desc, Is_active, Createdby, CreatedDATE, Updatedby, UpdatedDATE) " +
+                "VALUES (@Lookup_type, @Lookup_desc, @Is_active, @Createdby, @CreatedDATE, @Updatedby, @UpdatedDATE)";
+    var command = new SqlCommand(query, connection);
+
+    command.Parameters.AddWithValue("@Lookup_type", lookup.Lookup_type ?? (object)System.DBNull.Value);
+    command.Parameters.AddWithValue("@Lookup_desc", lookup.Lookup_desc ?? (object)System.DBNull.Value);
+    command.Parameters.AddWithValue("@Is_active", lookup.Is_active ?? (object)System.DBNull.Value);
+    command.Parameters.AddWithValue("@Createdby", lookup.Createdby ?? (object)System.DBNull.Value);
+    command.Parameters.AddWithValue("@CreatedDATE", lookup.CreatedDATE);
+    command.Parameters.AddWithValue("@Updatedby", lookup.Updatedby ?? (object)System.DBNull.Value);
+    command.Parameters.AddWithValue("@UpdatedDATE", lookup.UpdatedDATE.HasValue ? (object)lookup.UpdatedDATE.Value : System.DBNull.Value);
+
+    connection.Open();
+    await command.ExecuteNonQueryAsync();
+}
+
+public async Task UpdateLookup(Lookup lookup)
+{
+    using (var connection = new SqlConnection(_connectionString))
+    {
+        var query = "UPDATE lookup_table SET Lookup_type = @Lookup_type, " +
+                    "Lookup_desc = @Lookup_desc, Is_active = @Is_active, " +
+                    "Createdby = @Createdby, CreatedDATE = @CreatedDATE, " +
+                    "Updatedby = @Updatedby, UpdatedDATE = @UpdatedDATE " +
+                    "WHERE Lookup_id = @Lookup_id";
+                    
+        var command = new SqlCommand(query, connection);
+        
+        // Adding parameters with explicit null checks
+        command.Parameters.AddWithValue("@Lookup_id", lookup.Lookup_id);
+        command.Parameters.AddWithValue("@Lookup_type", lookup.Lookup_type ?? (object)System.DBNull.Value);
+        command.Parameters.AddWithValue("@Lookup_desc", lookup.Lookup_desc ?? (object)System.DBNull.Value);
+        command.Parameters.AddWithValue("@Is_active", lookup.Is_active ?? (object)System.DBNull.Value);
+        command.Parameters.AddWithValue("@Createdby", lookup.Createdby ?? (object)System.DBNull.Value);
+        command.Parameters.AddWithValue("@CreatedDATE", lookup.CreatedDATE);
+        command.Parameters.AddWithValue("@Updatedby", lookup.Updatedby ?? (object)System.DBNull.Value);
+        command.Parameters.AddWithValue("@UpdatedDATE", lookup.UpdatedDATE.HasValue ? (object)lookup.UpdatedDATE.Value : System.DBNull.Value);
+
+        // Debug logging
+        Console.WriteLine($"Executing query: {query}");
+        Console.WriteLine($"Parameters: Lookup_id = {lookup.Lookup_id}, Lookup_type = {lookup.Lookup_type}, Lookup_desc = {lookup.Lookup_desc}, Is_active = {lookup.Is_active}, Createdby = {lookup.Createdby}, CreatedDATE = {lookup.CreatedDATE}, Updatedby = {lookup.Updatedby}, UpdatedDATE = {lookup.UpdatedDATE}");
+
+        connection.Open();
+        try
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            // Log the exception details
+            Console.WriteLine($"Exception: {ex.Message}");
+            throw; // Re-throw the exception after logging
+        }
+    }
+}
+
+
+
+        public async Task DeleteLookup(int id)
+        {
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var query = "DELETE FROM lookup_table WHERE Lookup_id = @id";
+                var command = new SqlCommand(query, connection);
+                command.Parameters.AddWithValue("@id", id);
+                connection.Open();
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+    }
+}
+
+
+
+
+
+use VueJsApp;
+CREATE TABLE lookup_table (
+    lookup_id INT IDENTITY(1,1) PRIMARY KEY,
+    lookup_type VARCHAR(50),
+    lookup_desc VARCHAR(255),
+    is_active CHAR(1),
+    createdby VARCHAR(10) DEFAULT 'system',
+    createdDATE DATETIME DEFAULT GETDATE(),
+    updatedby VARCHAR(10),
+    updatedDATE DATETIME
+);
+
+has context menu
+
+
+SELECT 
+    con.name AS ConstraintName,
+    col.name AS ColumnName
+FROM 
+    sys.default_constraints AS con
+    JOIN sys.columns AS col ON con.parent_column_id = col.column_id AND con.parent_object_id = col.object_id
+WHERE 
+    con.parent_object_id = OBJECT_ID('lookup_table');
+ 
+ 
+ALTER TABLE lookup_table
+ADD CONSTRAINT DF_lookup_table_UpdatedDATE
+DEFAULT GETDATE() FOR UpdatedDATE;
+ 
+EXEC sp_help 'lookup_table';
+*/
