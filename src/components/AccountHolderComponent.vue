@@ -330,3 +330,24 @@
   color: white;
 }
 </style>
+
+
+
+
+import axios from 'axios';
+
+// Create an Axios instance with the base URL and timeout
+const AccountHolderApi = axios.create({
+  baseURL: 'http://localhost:5113/api/accountholder', // Adjust the base URL to match your CoreWCF endpoint
+  timeout: 10000,
+});
+
+// Exported functions for interacting with the AccountHolder API
+export const getAllAccountHolders = () => AccountHolderApi.get('/');
+export const getAccountHolderByIdAsync = (id) => AccountHolderApi.get(`/${id}`);
+export const addAccountHolderAsync = (accountHolder) => AccountHolderApi.post('/', accountHolder);
+export const updateAccountHolderAsync = (id, accountHolder) => AccountHolderApi.put(`/${id}`, accountHolder);
+export const deleteAccountHolderAsync = (id) => AccountHolderApi.delete(`/${id}`);
+
+export default AccountHolderApi;
+
