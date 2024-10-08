@@ -1,0 +1,278 @@
+//TableService
+
+using CoreWCFService1.IServices;
+using CoreWCFService1.Models;
+using Microsoft.Data.SqlClient;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace CoreWCFService1.DataAccessLayer
+{
+    public class TableService : ITableService // Implement the interface
+    {
+
+        
+        // Creates a table with the specified name and columns
+        public bool CreateTable(string tableName, List<ColumnModel> columns)
+        {
+            try
+            {
+                using (var connection = new SqlConnection("Server=SURYA\\SQLEXPRESS;Database=VuejsApp;Integrated Security=True; TrustServerCertificate=True"))
+                {
+                    connection.Open();
+
+                    // Validate and sanitize table name
+                    ValidateTableName(tableName);
+
+                    // Map each column to its corresponding SQL type
+                    string columnDefinitions = string.Join(", ", columns.Select(c => $"{SanitizeIdentifier(c.Name)} {MapToSqlType(c.Type)}"));
+
+                    // SQL query to create the table
+                    string query = $"CREATE TABLE {SanitizeIdentifier(tableName)} ({columnDefinitions})";
+
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.ExecuteNonQuery();
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Log the error message and stack trace for debugging
+                Console.WriteLine("Error creating table: " + ex.Message);
+                Console.WriteLine("Stack Trace: " + ex.StackTrace);
+                return false;
+            }
+        }
+
+        // Map the incoming column types from ColumnModel to valid SQL types
+        private string MapToSqlType(string type)
+        {
+            switch (type.ToLower())
+            {
+                case "string":
+                    return "VARCHAR(255)"; // Map 'string' to 'VARCHAR(255)'
+                case "int":
+                    return "INT"; // Map 'int' to 'INT'
+                case "decimal":
+                    return "DECIMAL(18,2)"; // Map 'decimal' to 'DECIMAL(18,2)'
+                // Add other type mappings as necessary
+                default:
+                    throw new Exception($"Unknown data type: {type}");
+            }
+        }
+
+        // Validate the table name to prevent SQL injection
+        private void ValidateTableName(string tableName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName) || !System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[A-Za-z_][A-Za-z0-9_]*$"))
+            {
+                throw new ArgumentException("Invalid table name. Table names must start with a letter or underscore and can only contain letters, numbers, and underscores.");
+            }
+        }
+
+        // Sanitize identifier to prevent SQL injection
+        private string SanitizeIdentifier(string identifier)
+        {
+            return $"[{identifier.Replace("]", "]]")}]"; // Escape brackets for SQL Server
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//RESTAPILAYER Controller 
+
+
+
+
+
+using Microsoft.AspNetCore.Mvc;
+using CoreWCFService1.DataAccessLayer;
+using CoreWCFService1.Models;
+using CoreWCFService1.IServices;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;// Make sure the correct namespace for ITableService is added
+using System.Collections.Generic;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Data.SqlClient;
+
+namespace RestApiLayer.Services
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class TableController : ControllerBase
+    {
+        private readonly ITableService _tableService;
+
+        public TableController(ITableService tableService)
+        {
+            _tableService = tableService;
+        }
+
+        [HttpPost("create")]
+        public IActionResult CreateTable([FromBody] Table request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.TableName) || request.Columns == null || request.Columns.Count == 0)
+            {
+                return BadRequest("Invalid table creation request.");
+            }
+
+            var success = _tableService.CreateTable(request.TableName, request.Columns);
+            
+            if (success)
+            {
+                return Ok(new { message = "Table created successfully" });
+            }
+            else
+            {
+                return StatusCode(500, "Failed to create table.");
+            }
+        }
+    }
+}
+
+
+
+
+
+
+//API 
+
+import axios from 'axios';
+
+// Create an Axios instance with the base URL and timeout
+const TableServiceApi = axios.create({
+  baseURL: 'http://localhost:5113/api/Table/create', // Adjust the base URL to match your CoreWCF endpoint
+  timeout: 10000,
+});
+
+// Exported functions for interacting with the TableService API
+export const createTableAsync = (tableData) => TableServiceApi.post('/CreateTable', tableData);
+
+export default TableServiceApi;
+
+
+
+
+
+
+
+//VueJS APP  
+
+
+<template>
+  <div>
+    <h2>Create Database Table</h2>
+    <form @submit.prevent="createTable">
+      <label>Table Name:</label>
+      <input v-model="tableName" type="text" required placeholder="Enter table name" />
+      
+      <h3>Columns</h3>
+      <div v-for="(column, index) in columns" :key="index">
+        <input v-model="column.name" placeholder="Column Name" required />
+        <input v-model="column.type" placeholder="Column Type (e.g., INT, VARCHAR(255))" required />
+        <button type="button" @click="removeColumn(index)">Remove</button>
+      </div>
+      <button type="button" @click="addColumn">Add Column</button>
+      <button type="submit">Create Table</button>
+    </form>
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+  data() {
+    return {
+      tableName: '',
+      columns: [{ name: '', type: '' }], // Initial column with empty values
+    };
+  },
+  methods: {
+    // Add a new column to the form
+    addColumn() {
+      this.columns.push({ name: '', type: '' });
+    },
+    // Remove a column from the form
+    removeColumn(index) {
+      this.columns.splice(index, 1);
+    },
+    // Create table by sending form data to the backend
+    async createTable() {
+      // Check if all required fields are filled
+      if (!this.tableName || this.columns.some(col => !col.name || !col.type)) {
+        alert('Please fill out all fields');
+        return;
+      }
+
+      // Build the data to be sent to the API
+      const tableData = {
+        tableName: this.tableName,
+        columns: this.columns,
+      };
+
+      try {
+        // Send POST request to the backend API
+        const response = await axios.post('http://localhost:5113/api/Table/create', tableData);
+        
+        // Check the response and give feedback
+        if (response.data) {
+          alert('Table created successfully');
+        } else {
+          alert('Failed to create table');
+        }
+      } catch (error) {
+        console.error('Error creating table:', error);
+        alert('Error creating table: ' + (error.response?.data?.message || 'Unknown error'));
+      }
+    },
+  },
+};
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
